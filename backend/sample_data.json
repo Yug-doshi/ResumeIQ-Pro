@@ -1,0 +1,62 @@
+[
+  {
+    "resume": "Python developer with 3 years experience. Skills: Python, Django, REST API, PostgreSQL, Git. Built e-commerce backend serving 5000 users. Experience with Docker and AWS deployment.",
+    "job_description": "Looking for Python Backend Developer. Required: Python, Django, PostgreSQL, REST APIs. Nice to have: Docker, AWS, Redis.",
+    "match_score": 0.85,
+    "selected": 1
+  },
+  {
+    "resume": "Fresh graduate with knowledge of HTML, CSS, and basic JavaScript. Completed a todo app project.",
+    "job_description": "Senior React Developer needed. Must have 5+ years React, TypeScript, Redux, GraphQL, CI/CD experience.",
+    "match_score": 0.15,
+    "selected": 0
+  },
+  {
+    "resume": "Data Scientist with expertise in Python, TensorFlow, scikit-learn, Pandas, NumPy. Built recommendation system improving engagement by 35%. Published 2 ML papers.",
+    "job_description": "Data Scientist role. Skills: Python, ML, TensorFlow, statistical analysis, SQL, data visualization.",
+    "match_score": 0.90,
+    "selected": 1
+  },
+  {
+    "resume": "Full Stack Developer. React, Node.js, MongoDB, Express. Built social media platform with 10K users. AWS deployment experience.",
+    "job_description": "Full Stack Engineer needed. React, Node.js, MongoDB required. Experience with AWS and CI/CD preferred.",
+    "match_score": 0.80,
+    "selected": 1
+  },
+  {
+    "resume": "Marketing professional with social media management skills. Experience with Canva and WordPress.",
+    "job_description": "Backend Software Engineer. Python, Java, microservices, Kubernetes, SQL required.",
+    "match_score": 0.05,
+    "selected": 0
+  },
+  {
+    "resume": "DevOps Engineer. Docker, Kubernetes, Terraform, AWS, Jenkins, Python scripting. Managed infrastructure for 50+ microservices.",
+    "job_description": "DevOps Engineer. Docker, Kubernetes, CI/CD, cloud platforms. Infrastructure as code experience required.",
+    "match_score": 0.88,
+    "selected": 1
+  },
+  {
+    "resume": "Junior developer with Java basics. Completed online course in Spring Boot. No professional experience.",
+    "job_description": "Mid-level Java Developer. 3+ years Java, Spring Boot, microservices, SQL, REST APIs.",
+    "match_score": 0.30,
+    "selected": 0
+  },
+  {
+    "resume": "ML Engineer with PyTorch, Python, Docker, MLOps. Deployed models serving 1M predictions daily. Experience with GPU computing and model optimization.",
+    "job_description": "ML Engineer. PyTorch/TensorFlow, Python, model deployment, MLOps, Docker required.",
+    "match_score": 0.92,
+    "selected": 1
+  },
+  {
+    "resume": "Web developer with HTML, CSS, JavaScript, jQuery. Built 10+ responsive websites. Basic React knowledge.",
+    "job_description": "Frontend Developer. Advanced React, TypeScript, state management, testing frameworks, performance optimization.",
+    "match_score": 0.35,
+    "selected": 0
+  },
+  {
+    "resume": "Cloud Architect with AWS, Azure, GCP certifications. 8 years experience designing scalable systems. Expert in Terraform and Kubernetes.",
+    "job_description": "Cloud Solutions Architect. Multi-cloud experience, architecture design, IaC, security best practices.",
+    "match_score": 0.95,
+    "selected": 1
+  }
+]
