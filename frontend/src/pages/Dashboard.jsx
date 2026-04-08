@@ -8,7 +8,7 @@ import {
 import toast from 'react-hot-toast';
 import ScoreGauge from '../components/ScoreGauge';
 import SkillHeatmap from '../components/SkillHeatmap';
-import { analyzeResume, getCandidateRanking, getWeaknessAnalysis, getKeywordAnalysis, generateSummary } from '../api/apiClient';
+import { analyzeResume, getCandidateRanking, getWeaknessAnalysis, getKeywordAnalysis, generateSummary, predictShortlist } from '../api/apiClient';
 
 /* ──── Job role options ──── */
 const JOB_ROLES = [
@@ -88,7 +88,15 @@ function Dashboard({ resumeData, analysisData, setAnalysisData, loading, setLoad
         /* summary is optional */
       }
 
-      const fullResult = { ...result, ranking, weakness, keywords, summary };
+      /* Step 6: Shortlist prediction */
+      let shortlist = null;
+      try {
+        shortlist = await predictShortlist(resumeData.resume_id, jobDescription, jobRole);
+      } catch (e) {
+        /* shortlist is optional */
+      }
+
+      const fullResult = { ...result, ranking, weakness, keywords, summary, shortlist };
       setAnalysisData(fullResult);
       toast.success('Analysis complete! 🎉');
     } catch (err) {
@@ -269,6 +277,85 @@ function Dashboard({ resumeData, analysisData, setAnalysisData, loading, setLoad
                   )}
                 </motion.div>
               </div>
+
+              {/* ── Row 1.5: Shortlist Prediction ── */}
+              {analysisData.shortlist && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                  className="glass-card-solid p-6"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Target className="w-5 h-5 text-purple-500" />
+                      <h3 className="font-bold text-gray-800 dark:text-gray-200">
+                        Shortlisting Prediction
+                      </h3>
+                      <span className="badge badge-purple">AI NLC</span>
+                    </div>
+                    <span className="text-xs text-gray-500">Confidence: {analysisData.shortlist.confidence_level}</span>
+                  </div>
+
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    {/* Big probability number */}
+                    <div className="text-center">
+                      <div className={`w-32 h-32 rounded-3xl border-2 flex flex-col items-center justify-center ${
+                        analysisData.shortlist.shortlist_probability >= 65 ? 'bg-emerald-500/10 border-emerald-500/20' :
+                        analysisData.shortlist.shortlist_probability >= 40 ? 'bg-amber-500/10 border-amber-500/20' :
+                        'bg-red-500/10 border-red-500/20'
+                      }`}>
+                        <span className={`text-4xl font-black ${
+                          analysisData.shortlist.shortlist_probability >= 65 ? 'text-emerald-500' :
+                          analysisData.shortlist.shortlist_probability >= 40 ? 'text-amber-500' :
+                          'text-red-500'
+                        }`}>
+                          {analysisData.shortlist.shortlist_probability}%
+                        </span>
+                        <span className="text-xs text-gray-500 mt-1">Shortlist Chance</span>
+                      </div>
+                      <p className="text-sm font-semibold mt-2 text-gray-700 dark:text-gray-300">
+                        {analysisData.shortlist.prediction_label}
+                      </p>
+                    </div>
+
+                    {/* Key Factors */}
+                    <div className="flex-1 w-full">
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">Key Factors</p>
+                      <div className="space-y-2">
+                        {(analysisData.shortlist.key_factors || []).slice(0, 5).map((f, i) => (
+                          <div key={i} className="flex items-center gap-3">
+                            <span className="text-sm">{f.emoji}</span>
+                            <span className="text-sm text-gray-700 dark:text-gray-300 flex-1">{f.factor}</span>
+                            <div className="w-24 h-1.5 bg-gray-200 dark:bg-surface-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  f.impact === 'positive' ? 'bg-emerald-500' :
+                                  f.impact === 'negative' ? 'bg-red-500' : 'bg-amber-500'
+                                }`}
+                                style={{ width: `${f.score}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-bold text-gray-500 w-10 text-right">{f.score}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Improvements */}
+                  {analysisData.shortlist.improvements?.length > 0 && (
+                    <div className="mt-4 p-4 rounded-xl bg-brand-500/5 dark:bg-brand-500/10 border border-brand-500/20">
+                      <p className="text-xs font-semibold text-brand-600 dark:text-brand-400 mb-2">💡 How to Improve</p>
+                      <ul className="space-y-1">
+                        {analysisData.shortlist.improvements.map((imp, i) => (
+                          <li key={i} className="text-sm text-gray-600 dark:text-gray-400">{imp}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </motion.div>
+              )}
 
               {/* ── Row 2: Skills ── */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

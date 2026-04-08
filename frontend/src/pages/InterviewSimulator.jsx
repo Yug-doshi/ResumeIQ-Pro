@@ -3,12 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mic, Brain, ChevronLeft, ChevronRight, Loader2, Send,
-  CheckCircle, Star, MessageSquare, Award, Zap
+  CheckCircle, Star, MessageSquare, Award, Zap, Smile, Frown, Meh, HelpCircle, AlertTriangle, TrendingUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import VoiceRecorder from '../components/VoiceRecorder';
 import ScoreGauge from '../components/ScoreGauge';
-import { generateInterviewQuestions, evaluateAnswer } from '../api/apiClient';
+import { generateInterviewQuestions, evaluateAnswer, analyzeEmotion } from '../api/apiClient';
+
+const EMOTION_ICONS = {
+  confident: { icon: Smile, color: 'text-emerald-500', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+  nervous: { icon: Frown, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20' },
+  hesitant: { icon: HelpCircle, color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20' },
+  neutral: { icon: Meh, color: 'text-gray-500', bg: 'bg-gray-500/10 border-gray-500/20' },
+};
 
 const CATEGORIES = ['All', 'HR', 'Technical', 'Behavioral'];
 const DIFFICULTIES = ['All', 'easy', 'medium', 'hard'];
@@ -31,6 +38,8 @@ function InterviewSimulator({ resumeData, analysisData, loading, setLoading }) {
   const [evaluating, setEvaluating] = useState(false);
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterDifficulty, setFilterDifficulty] = useState('All');
+  const [emotions, setEmotions] = useState({});
+  const [analyzingEmotion, setAnalyzingEmotion] = useState(false);
 
   /* ── No resume guard ── */
   if (!resumeData) {
@@ -73,14 +82,23 @@ function InterviewSimulator({ resumeData, analysisData, loading, setLoading }) {
     if (!answer.trim()) { toast.error('Write or speak your answer first'); return; }
 
     setEvaluating(true);
+    setAnalyzingEmotion(true);
     try {
-      const result = await evaluateAnswer(q.question, answer, q.ideal_answer, q.category);
+      // Run evaluation and emotion analysis in parallel
+      const [result, emotionResult] = await Promise.all([
+        evaluateAnswer(q.question, answer, q.ideal_answer, q.category),
+        analyzeEmotion(answer).catch(() => null),
+      ]);
       setEvaluations((prev) => ({ ...prev, [q.question_id]: result }));
+      if (emotionResult) {
+        setEmotions((prev) => ({ ...prev, [q.question_id]: emotionResult }));
+      }
       toast.success(`Score: ${result.score}/10`);
     } catch (err) {
       toast.error('Evaluation failed');
     } finally {
       setEvaluating(false);
+      setAnalyzingEmotion(false);
     }
   };
 
@@ -100,6 +118,7 @@ function InterviewSimulator({ resumeData, analysisData, loading, setLoading }) {
 
   const currentQuestion = filteredQuestions[currentIndex];
   const currentEval = currentQuestion ? evaluations[currentQuestion.question_id] : null;
+  const currentEmotion = currentQuestion ? emotions[currentQuestion.question_id] : null;
 
   /* ── Session score ── */
   const completedCount = Object.keys(evaluations).length;
@@ -281,6 +300,92 @@ function InterviewSimulator({ resumeData, analysisData, loading, setLoading }) {
                     <p className="text-sm text-emerald-600 dark:text-emerald-300 leading-relaxed">
                       {currentEval.better_answer}
                     </p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* ── Emotion Detection Result ── */}
+            {currentEmotion && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-card-solid p-6"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <Brain className="w-5 h-5 text-purple-500" />
+                  <h3 className="font-bold text-gray-800 dark:text-gray-200">Emotion & Confidence Analysis</h3>
+                </div>
+
+                {/* Emotion Label */}
+                <div className="flex items-center gap-4 mb-4">
+                  {(() => {
+                    const ei = EMOTION_ICONS[currentEmotion.primary_emotion] || EMOTION_ICONS.neutral;
+                    const EmIcon = ei.icon;
+                    return (
+                      <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${ei.bg}`}>
+                        <EmIcon className={`w-8 h-8 ${ei.color}`} />
+                        <div>
+                          <p className={`text-lg font-bold ${ei.color}`}>{currentEmotion.emotion_label}</p>
+                          <p className="text-xs text-gray-500">Primary detected emotion</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Confidence Bars */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  {Object.entries(currentEmotion.confidence_scores || {}).map(([key, val]) => {
+                    const ei = EMOTION_ICONS[key] || EMOTION_ICONS.neutral;
+                    return (
+                      <div key={key} className="text-center">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize mb-1">{key}</p>
+                        <div className="h-2 rounded-full bg-gray-200 dark:bg-surface-800 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700`}
+                            style={{ width: `${val}%`, backgroundColor: ei.color === 'text-emerald-500' ? '#10b981' : ei.color === 'text-red-500' ? '#ef4444' : ei.color === 'text-amber-500' ? '#f59e0b' : '#6b7280' }}
+                          />
+                        </div>
+                        <p className="text-xs font-bold mt-1 text-gray-700 dark:text-gray-300">{val}%</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Text Signals */}
+                {currentEmotion.analysis?.text_signals?.length > 0 && (
+                  <div className="mb-4 space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Text Signals</p>
+                    {currentEmotion.analysis.text_signals.map((sig, i) => (
+                      <div key={i} className={`flex items-start gap-2 text-sm p-2 rounded-lg ${
+                        sig.type === 'positive' ? 'bg-emerald-50 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-400' :
+                        sig.type === 'warning' ? 'bg-amber-50 dark:bg-amber-900/10 text-amber-700 dark:text-amber-400' :
+                        'bg-gray-50 dark:bg-surface-800 text-gray-600 dark:text-gray-400'
+                      }`}>
+                        {sig.type === 'positive' ? <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" /> :
+                         sig.type === 'warning' ? <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" /> :
+                         <TrendingUp className="w-4 h-4 mt-0.5 flex-shrink-0" />}
+                        <span>{sig.signal}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Assessment */}
+                {currentEmotion.analysis?.overall_assessment && (
+                  <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800/30 mb-4">
+                    <p className="text-sm text-purple-700 dark:text-purple-300">{currentEmotion.analysis.overall_assessment}</p>
+                  </div>
+                )}
+
+                {/* Tips */}
+                {currentEmotion.tips?.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Coaching Tips</p>
+                    {currentEmotion.tips.map((tip, i) => (
+                      <p key={i} className="text-sm text-gray-600 dark:text-gray-400">{tip}</p>
+                    ))}
                   </div>
                 )}
               </motion.div>

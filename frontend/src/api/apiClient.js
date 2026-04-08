@@ -167,5 +167,43 @@ export async function generateSummary(resumeId, jobRole) {
   return response.data;
 }
 
+/* ===================== SHORTLIST PREDICTION ===================== */
+export async function predictShortlist(resumeId, jobDescription, jobRole) {
+  const response = await api.post('/predict-shortlist', {
+    resume_id: resumeId,
+    job_description: jobDescription,
+    job_role: jobRole,
+  });
+  return response.data;
+}
+
+/* ===================== EMOTION DETECTION ===================== */
+export async function analyzeEmotion(text, audioFeatures = null) {
+  const body = { text };
+  if (audioFeatures) body.audio_features = audioFeatures;
+  const response = await api.post('/analyze-emotion', body);
+  return response.data;
+}
+
+/* ===================== DYNAMIC AI ROADMAP ===================== */
+export async function getDynamicRoadmap(resumeId, jobRole, targetSkills, jobDescription = '', weeks = 8) {
+  const response = await api.post('/dynamic-roadmap', {
+    resume_id: resumeId,
+    job_role: jobRole,
+    target_skills: targetSkills,
+    job_description: jobDescription,
+    weeks,
+  });
+  return response.data;
+}
+
+/* ===================== GITHUB ANALYZER ===================== */
+export async function analyzeGitHub(githubInput) {
+  const response = await api.post('/analyze-github', {
+    github_input: githubInput,
+  });
+  return response.data;
+}
+
 export default api;
 

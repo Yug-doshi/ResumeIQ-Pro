@@ -10,6 +10,7 @@ import SkillRoadmap from './pages/SkillRoadmap';
 import ProjectSuggestions from './pages/ProjectSuggestions';
 import ResumeRewriter from './pages/ResumeRewriter';
 import ProgressTracker from './pages/ProgressTracker';
+import GitHubAnalyzer from './pages/GitHubAnalyzer';
 
 /* ───── Dark Mode Context ───── */
 export const DarkModeContext = createContext();
@@ -106,6 +107,7 @@ function App() {
               element={
                 <SkillRoadmap
                   analysisData={analysisData}
+                  resumeData={resumeData}
                   loading={loading}
                   setLoading={setLoading}
                 />
@@ -140,6 +142,7 @@ function App() {
                 />
               }
             />
+            <Route path="/github" element={<GitHubAnalyzer />} />
           </Routes>
 
           <Toaster

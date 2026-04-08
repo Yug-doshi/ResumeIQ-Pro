@@ -41,6 +41,10 @@ from utils.ranking_engine import calculate_ranking
 from utils.weakness_detector import analyze_weaknesses
 from utils.keyword_optimizer import analyze_keywords
 from utils.summary_generator import generate_resume_summary
+from utils.shortlist_predictor import predict_shortlist_chance
+from utils.emotion_detector import analyze_speech_emotion
+from utils.dynamic_roadmap import generate_dynamic_roadmap as generate_dynamic_roadmap_fn
+from utils.github_analyzer import analyze_github_profile
 
 
 # =====================================================================
@@ -132,6 +136,25 @@ class ProgressEntry(BaseModel):
     keyword_match: float = 0
     matching_skills: List[str] = []
     missing_skills: List[str] = []
+
+class ShortlistRequest(BaseModel):
+    resume_id: str
+    job_description: str = ""
+    job_role: str = "Software Engineer"
+
+class EmotionRequest(BaseModel):
+    text: str = ""
+    audio_features: Optional[Dict] = None
+
+class DynamicRoadmapRequest(BaseModel):
+    resume_id: str
+    job_role: str = "Software Engineer"
+    target_skills: List[str] = []
+    job_description: str = ""
+    weeks: int = 8
+
+class GitHubRequest(BaseModel):
+    github_input: str
 
 
 # =====================================================================
@@ -552,6 +575,52 @@ async def generate_summary(request: SummaryRequest):
     file_path = _find_resume_file(request.resume_id)
     resume_text = extract_text_from_resume(file_path)
     result = generate_resume_summary(resume_text, request.job_role)
+    return result
+
+
+# ─────────────── SHORTLIST PREDICTION ───────────────
+
+@app.post("/predict-shortlist")
+async def predict_shortlist(request: ShortlistRequest):
+    """Predict chance of getting shortlisted using NLC."""
+    file_path = _find_resume_file(request.resume_id)
+    resume_text = extract_text_from_resume(file_path)
+    result = predict_shortlist_chance(resume_text, request.job_description, request.job_role)
+    return result
+
+
+# ─────────────── EMOTION DETECTION ───────────────
+
+@app.post("/analyze-emotion")
+async def analyze_emotion(request: EmotionRequest):
+    """Detect emotion/confidence from text and audio features."""
+    result = analyze_speech_emotion(request.text, request.audio_features)
+    return result
+
+
+# ─────────────── DYNAMIC AI ROADMAP ───────────────
+
+@app.post("/dynamic-roadmap")
+async def dynamic_roadmap(request: DynamicRoadmapRequest):
+    """Generate AI-powered dynamic learning roadmap."""
+    file_path = _find_resume_file(request.resume_id)
+    resume_text = extract_text_from_resume(file_path)
+    result = generate_dynamic_roadmap_fn(
+        resume_text,
+        request.job_role,
+        request.target_skills,
+        request.job_description,
+        request.weeks
+    )
+    return result
+
+
+# ─────────────── GITHUB PROFILE ANALYZER ───────────────
+
+@app.post("/analyze-github")
+async def analyze_github(request: GitHubRequest):
+    """Analyze GitHub profile and suggest improvements."""
+    result = analyze_github_profile(request.github_input)
     return result
 
 

@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useDarkMode } from '../App';
 import {
   Brain, Upload, LayoutDashboard, Mic, Map, FolderGit2,
-  FileEdit, TrendingUp, Sun, Moon, Menu, X, Sparkles
+  FileEdit, TrendingUp, Sun, Moon, Menu, X, Sparkles, Github
 } from 'lucide-react';
 
 /* ──── Navigation links ──── */
@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { to: '/roadmap', label: 'Roadmap', icon: Map },
   { to: '/projects', label: 'Projects', icon: FolderGit2 },
   { to: '/rewriter', label: 'Rewriter', icon: FileEdit },
+  { to: '/github', label: 'GitHub', icon: Github },
   { to: '/progress', label: 'Progress', icon: TrendingUp },
 ];
 
