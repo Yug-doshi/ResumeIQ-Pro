@@ -114,10 +114,10 @@ def analyze_keywords(resume_text: str, job_description: str, job_role: str = "")
     # ── ATS optimization score ──
     match_ratio = len(matched) / max(1, len(matched) + len(missing))
     ats_opt_score = int(
-        match_ratio * 40 +
-        verb_score * 0.2 +
-        min(30, len(metrics_found) * 6) +
-        min(10, density * 2)
+        match_ratio * 50 +                          # keyword match ratio (up to 50)
+        min(20, verb_score * 0.2) +                  # action verbs (up to 20)
+        min(20, len(metrics_found) * 4) +            # quantifiable metrics (up to 20)
+        min(10, len(matched) * 1.5)                  # bonus for absolute matches (up to 10)
     )
     ats_opt_score = min(100, max(0, ats_opt_score))
 

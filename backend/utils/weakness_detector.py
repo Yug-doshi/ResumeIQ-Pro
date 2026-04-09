@@ -158,7 +158,7 @@ def _evaluate_experience(full_text: str, text_lower: str) -> tuple:
     score = 25
     tips = []
 
-    has_section = any(kw in text_lower for kw in ['experience', 'work history', 'employment', 'professional experience'])
+    has_section = any(kw in text_lower for kw in ['experience', 'work history', 'employment', 'professional experience', 'internship', 'intern'])
     if has_section:
         score += 15
     else:

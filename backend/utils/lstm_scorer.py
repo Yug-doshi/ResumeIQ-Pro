@@ -183,35 +183,152 @@ class LSTMResumeScorer:
         }
 
     def _score_with_tfidf(self, resume_text, job_description):
-        """Fallback scoring using TF-IDF cosine similarity."""
+        """
+        Multi-signal fallback scoring when LSTM model is not available.
+        Uses TF-IDF + skill overlap + resume quality signals for accurate scoring.
+        """
         resume_clean = self.clean_text(resume_text)
         jd_clean = self.clean_text(job_description) if job_description else ""
 
+        # ── Signal 1: Resume quality baseline ──
+        quality = self._assess_resume_quality(resume_clean)
+
         if not jd_clean:
-            # Without a JD, give a moderate baseline score
-            word_count = len(resume_clean.split())
-            base_score = min(65, 30 + word_count // 10)
+            # Without a JD, score based on resume quality alone
+            base_score = int(quality * 70 + 15)  # 15-85 range
+            base_score = min(75, max(20, base_score))
             return {
                 "match_score": base_score,
-                "selection_probability": round(base_score / 100 * 0.9, 3),
+                "selection_probability": round(base_score / 100 * 0.85, 3),
                 "method": "tfidf_fallback"
             }
 
+        # ── Signal 2: TF-IDF cosine similarity ──
         try:
             vectorizer = TfidfVectorizer(max_features=500, stop_words='english')
             tfidf_matrix = vectorizer.fit_transform([resume_clean, jd_clean])
             similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
         except Exception:
-            similarity = 0.4
+            similarity = 0.3
 
-        match_score = int(min(100, max(0, similarity * 120)))  # scale up slightly
-        selection_prob = round(min(0.95, similarity * 1.1), 3)
+        # ── Signal 3: Direct keyword overlap ──
+        resume_words = set(resume_clean.split())
+        jd_words = set(jd_clean.split())
+        # Remove very common words
+        common_stopwords = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
+                           'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
+                           'should', 'could', 'may', 'might', 'shall', 'can', 'and', 'or',
+                           'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from',
+                           'as', 'into', 'that', 'this', 'it', 'not', 'no', 'so', 'if', 'we',
+                           'you', 'they', 'our', 'your', 'their', 'its', 'all', 'each', 'every',
+                           'any', 'some', 'such', 'than', 'too', 'very', 'just', 'about', 'more',
+                           'also', 'up', 'out', 'how', 'what', 'when', 'where', 'who', 'which',
+                           'years', 'experience', 'looking', 'role', 'work', 'working', 'using',
+                           'strong', 'required', 'requirements', 'preferred', 'including'}
+        jd_keywords = jd_words - common_stopwords
+        jd_keywords = {w for w in jd_keywords if len(w) > 2}
+        if jd_keywords:
+            keyword_overlap = len(resume_words & jd_keywords) / len(jd_keywords)
+        else:
+            keyword_overlap = 0.3
+
+        # ── Signal 4: Tech-specific skill matching ──
+        tech_skills = [
+            'python', 'javascript', 'java', 'react', 'angular', 'vue', 'node', 'nodejs',
+            'sql', 'mysql', 'postgresql', 'mongodb', 'docker', 'kubernetes', 'aws', 'azure',
+            'gcp', 'git', 'github', 'linux', 'tensorflow', 'pytorch', 'flask', 'django',
+            'fastapi', 'express', 'typescript', 'html', 'css', 'api', 'rest', 'graphql',
+            'redis', 'kafka', 'ci', 'cd', 'agile', 'scrum', 'testing', 'jenkins',
+            'terraform', 'ansible', 'machine', 'learning', 'deep', 'nlp', 'pandas', 'numpy',
+            'scikit', 'keras', 'next', 'tailwind', 'bootstrap', 'webpack', 'vite',
+            'microservices', 'spring', 'golang', 'rust', 'swift', 'kotlin', 'firebase'
+        ]
+        jd_tech = {w for w in jd_clean.split() if w in tech_skills}
+        resume_tech = {w for w in resume_clean.split() if w in tech_skills}
+        if jd_tech:
+            tech_overlap = len(resume_tech & jd_tech) / len(jd_tech)
+        else:
+            tech_overlap = min(1.0, len(resume_tech) / 8)  # reward having tech skills
+        # ── Signal 5: Skill breadth (total tech skills in resume) ──
+        skill_breadth = min(1.0, len(resume_tech) / 10)  # 10+ tech skills → 1.0
+
+        # ── Combine signals with weighted formula ──
+        # Nonlinear scaling for TF-IDF (boost low but non-zero similarities)
+        scaled_similarity = min(1.0, similarity * 2.5)  # 0.2 sim → 0.5 scaled
+
+        combined = (
+            scaled_similarity * 0.15 +     # TF-IDF textual similarity
+            keyword_overlap * 0.15 +        # Direct keyword matching
+            tech_overlap * 0.30 +           # Technical skill matching (most important)
+            skill_breadth * 0.15 +          # Skill breadth bonus
+            quality * 0.25                  # Resume quality/completeness
+        )
+
+        # Apply sigmoid-like curve to map to 0-100 nicely
+        # This prevents extreme low/high scores
+        match_score = int(combined * 100)
+        match_score = min(95, max(8, match_score))
+
+        # Selection probability: correlated but slightly more conservative
+        selection_prob = round(min(0.92, combined * 0.95), 3)
 
         return {
             "match_score": match_score,
             "selection_probability": selection_prob,
             "method": "tfidf_fallback"
         }
+
+    def _assess_resume_quality(self, text_clean):
+        """
+        Assess the overall quality of a resume text (0.0-1.0).
+        Checks: word count, sections, action verbs, technical terms, metrics.
+        """
+        score = 0.0
+        text_lower = text_clean.lower() if text_clean else ""
+        word_count = len(text_lower.split())
+
+        # Word count (content depth)
+        if word_count >= 300:
+            score += 0.20
+        elif word_count >= 200:
+            score += 0.15
+        elif word_count >= 100:
+            score += 0.10
+        else:
+            score += 0.03
+
+        # Resume sections present
+        sections = ['experience', 'education', 'skills', 'projects', 'summary',
+                    'objective', 'profile', 'certif', 'achievement']
+        section_count = sum(1 for s in sections if s in text_lower)
+        score += min(0.25, section_count * 0.05)
+
+        # Action verbs (impact language)
+        action_verbs = ['developed', 'implemented', 'designed', 'led', 'managed',
+                       'created', 'built', 'optimized', 'improved', 'deployed',
+                       'architected', 'delivered', 'automated', 'integrated', 'reduced']
+        verb_count = sum(1 for v in action_verbs if v in text_lower)
+        score += min(0.20, verb_count * 0.03)
+
+        # Technical terms density
+        tech_terms = ['api', 'database', 'server', 'cloud', 'framework', 'library',
+                     'algorithm', 'system', 'application', 'architecture', 'deployment',
+                     'testing', 'performance', 'security', 'integration']
+        tech_count = sum(1 for t in tech_terms if t in text_lower)
+        score += min(0.15, tech_count * 0.025)
+
+        # Quantifiable achievements
+        import re
+        metrics = re.findall(r'\d+%|\$\d+|\d+\+?\s*(?:users|clients|projects|team)', text_lower)
+        score += min(0.10, len(metrics) * 0.025)
+
+        # Contact info / professional signals
+        if re.search(r'[\w.+-]+@[\w-]+\.[\w.-]+', text_lower):
+            score += 0.05
+        if any(w in text_lower for w in ['github', 'linkedin', 'portfolio']):
+            score += 0.05
+
+        return min(1.0, score)
 
     # ─────────────── TRAINING ───────────────
     def train(self, resume_texts, jd_texts, match_scores, selection_labels, epochs=15):

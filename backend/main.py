@@ -236,15 +236,7 @@ async def analyze_resume(request: AnalyzeRequest):
     # ── Step 2: NLP keyword analysis ──
     nlp_score, keyword_percentage = calculate_ats_score(resume_text, job_desc, job_role)
 
-    # ── Step 3: Blend LSTM + NLP scores ──
-    # If LSTM is trained, weight it higher; otherwise use NLP
-    if lstm_result["method"] == "lstm":
-        final_score = int(ats_score * 0.6 + nlp_score * 0.4)
-    else:
-        final_score = int(ats_score * 0.4 + nlp_score * 0.6)
-    final_score = min(100, max(0, final_score))
-
-    # ── Step 4: Extract skills ──
+    # ── Step 3: Extract skills (needed for floors/suggestions) ──
     matching_skills = extract_skills(resume_text)
     required_skills = request.job_description.required_skills if request.job_description else []
     missing_skills = get_missing_skills(matching_skills, required_skills)
@@ -252,6 +244,22 @@ async def analyze_resume(request: AnalyzeRequest):
     # Add role-based missing skills if JD didn't specify any
     if not missing_skills:
         missing_skills = _get_role_default_missing(job_role, matching_skills)
+
+    # ── Step 3: Blend LSTM + NLP scores ──
+    # If LSTM is trained, weight it higher; otherwise NLP is more reliable
+    if lstm_result["method"] == "lstm":
+        final_score = int(ats_score * 0.55 + nlp_score * 0.45)
+    else:
+        # Fallback mode: NLP uses actual skill matching, so weight it higher
+        # But also consider LSTM's multi-signal fallback
+        final_score = int(ats_score * 0.45 + nlp_score * 0.55)
+
+    # Apply a minimum floor based on detected skills — a resume with 10+ real
+    # tech skills should never score below 25, regardless of JD match
+    skill_floor = min(40, len(matching_skills) * 3)
+    final_score = max(final_score, skill_floor)
+
+    final_score = min(100, max(0, final_score))
 
     # ── Step 5: Suggestions ──
     suggestions = _generate_suggestions(final_score, matching_skills, missing_skills)
@@ -532,9 +540,12 @@ async def resume_compatibility(request: CompatibilityRequest):
 
     # Blended score
     if lstm_result["method"] == "lstm":
-        final_score = int(lstm_result["match_score"] * 0.6 + nlp_score * 0.4)
+        final_score = int(lstm_result["match_score"] * 0.55 + nlp_score * 0.45)
     else:
-        final_score = int(lstm_result["match_score"] * 0.4 + nlp_score * 0.6)
+        final_score = int(lstm_result["match_score"] * 0.45 + nlp_score * 0.55)
+    # Minimum floor based on skills
+    skill_floor = min(40, len(skills) * 3)
+    final_score = max(final_score, skill_floor)
     final_score = min(100, max(0, final_score))
 
     return {

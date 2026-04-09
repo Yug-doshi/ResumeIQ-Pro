@@ -215,7 +215,9 @@ class ShortlistPredictor:
         try:
             vectors = self.tfidf.fit_transform([resume, jd])
             sim = cosine_similarity(vectors[0:1], vectors[1:2])[0][0]
-            return float(min(1.0, sim * 1.2))  # slight boost
+            # TF-IDF similarity between resume and JD is naturally low (0.05-0.25)
+            # Scale up with diminishing returns to get more usable scores
+            return float(min(1.0, sim * 2.5))
         except Exception:
             return 0.3
 
@@ -263,12 +265,19 @@ class ShortlistPredictor:
     def _compute_keyword_density(self, resume: str, jd: str) -> float:
         if not jd:
             return 0.5
-        jd_words = set(jd.split()) - {'the', 'a', 'an', 'is', 'are', 'and', 'or', 'in', 'to', 'of', 'for', 'with'}
+        common_stop = {'the', 'a', 'an', 'is', 'are', 'and', 'or', 'in', 'to', 'of', 'for', 'with',
+                       'we', 'you', 'our', 'looking', 'role', 'work', 'experience', 'years', 'strong',
+                       'required', 'preferred', 'including', 'ability', 'skills', 'all', 'be', 'by',
+                       'at', 'on', 'from', 'as', 'this', 'that', 'it', 'not', 'will', 'can', 'has',
+                       'have', 'do', 'does', 'was', 'were', 'been', 'being', 'each', 'some', 'any'}
+        jd_words = set(jd.split()) - common_stop
+        jd_words = {w for w in jd_words if len(w) > 2}
         if not jd_words:
             return 0.5
         resume_words = set(resume.split())
         overlap = len(jd_words & resume_words)
-        return min(1.0, overlap / max(1, len(jd_words) * 0.3))
+        # Use 50% of JD keywords as the target (not 30%) for more realistic scoring
+        return min(1.0, overlap / max(1, len(jd_words) * 0.5))
 
     # ─────────────── FACTOR BUILDING ───────────────
 

@@ -127,16 +127,16 @@ TECH_SKILLS = {
 
 # ── Role-specific required skills ──
 ROLE_REQUIRED_SKILLS = {
-    "software engineer": ["python", "javascript", "sql", "git", "api", "docker", "testing", "agile", "linux"],
-    "data scientist": ["python", "sql", "pandas", "numpy", "scikit-learn", "machine learning", "data visualization", "statistics"],
-    "ai engineer": ["python", "tensorflow", "pytorch", "deep learning", "machine learning", "nlp", "docker", "api"],
-    "web developer": ["html", "css", "javascript", "react", "api", "git", "sql", "tailwind"],
-    "devops engineer": ["docker", "kubernetes", "aws", "linux", "ci/cd", "terraform", "git", "python"],
-    "product manager": ["agile", "sql", "api", "data analysis"],
-    "backend developer": ["python", "sql", "api", "docker", "git", "linux", "testing", "databases"],
-    "frontend developer": ["javascript", "react", "html", "css", "typescript", "git", "testing", "api"],
-    "full stack developer": ["javascript", "react", "python", "sql", "api", "git", "docker", "html", "css"],
-    "ml engineer": ["python", "tensorflow", "pytorch", "docker", "machine learning", "api", "aws", "sql"],
+    "software engineer": ["python", "javascript", "sql", "git", "api", "docker", "testing", "agile", "linux", "react", "css", "html", "typescript", "mongodb", "express"],
+    "data scientist": ["python", "sql", "pandas", "numpy", "scikit-learn", "machine learning", "data visualization", "tensorflow", "pytorch", "data analysis", "git"],
+    "ai engineer": ["python", "tensorflow", "pytorch", "deep learning", "machine learning", "nlp", "docker", "api", "computer vision", "git", "numpy", "pandas"],
+    "web developer": ["html", "css", "javascript", "react", "api", "git", "sql", "tailwind", "typescript", "express", "mongodb", "next.js", "bootstrap"],
+    "devops engineer": ["docker", "kubernetes", "aws", "linux", "ci/cd", "terraform", "git", "python", "jenkins", "agile"],
+    "product manager": ["agile", "sql", "api", "data analysis", "git", "testing"],
+    "backend developer": ["python", "sql", "api", "docker", "git", "linux", "testing", "mongodb", "express", "fastapi", "django", "redis"],
+    "frontend developer": ["javascript", "react", "html", "css", "typescript", "git", "testing", "api", "next.js", "tailwind", "bootstrap", "vue"],
+    "full stack developer": ["javascript", "react", "python", "sql", "api", "git", "docker", "html", "css", "mongodb", "express", "typescript", "next.js"],
+    "ml engineer": ["python", "tensorflow", "pytorch", "docker", "machine learning", "api", "aws", "sql", "numpy", "pandas", "scikit-learn"],
 }
 
 
@@ -146,7 +146,8 @@ ROLE_REQUIRED_SKILLS = {
 
 def calculate_ats_score(resume_text: str, job_description: str, job_role: str) -> Tuple[int, float]:
     """
-    Calculate ATS score (0-100) using TF-IDF cosine similarity + keyword analysis.
+    Calculate ATS score (0-100) using TF-IDF cosine similarity + keyword analysis
+    + direct skill matching.
 
     Args:
         resume_text:     Full resume text
@@ -167,29 +168,44 @@ def calculate_ats_score(resume_text: str, job_description: str, job_role: str) -
 
     jd_clean = _clean_text(job_description)
 
-    # ── TF-IDF similarity ──
+    # ── Signal 1: TF-IDF similarity ──
     try:
         vectorizer = TfidfVectorizer(max_features=500, stop_words='english')
         tfidf_matrix = vectorizer.fit_transform([resume_clean, jd_clean])
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
     except Exception:
-        similarity = 0.4
+        similarity = 0.3
+    # Scale up low similarities (TF-IDF between resume/JD is naturally low)
+    similarity_score = min(100, similarity * 250)  # 0.2 → 50, 0.4 → 100
 
-    # ── Keyword matching ──
+    # ── Signal 2: Keyword matching (filtered) ──
     job_keywords = _extract_keywords(jd_clean)
     resume_lower = resume_text.lower()
     matched_count = sum(1 for kw in job_keywords if kw.lower() in resume_lower)
     keyword_percentage = (matched_count / max(1, len(job_keywords))) * 100
 
-    # ── Format quality ──
+    # ── Signal 3: Direct tech skill match ──
+    resume_skills = extract_skills(resume_text)
+    role_key = job_role.lower().strip()
+    required = ROLE_REQUIRED_SKILLS.get(role_key, ROLE_REQUIRED_SKILLS.get("software engineer"))
+    found_lower = set(s.lower() for s in resume_skills)
+    skill_match_count = sum(1 for s in required if s in found_lower)
+    skill_match_pct = (skill_match_count / max(1, len(required))) * 100
+
+    # ── Signal 4: Skill breadth bonus ──
+    # Reward having many relevant skills beyond the required list
+    breadth_bonus = min(100, len(resume_skills) * 6)  # 17 skills → 100
+
+    # ── Signal 5: Format quality ──
     format_score = _calculate_format_score(resume_text)
 
-    # ── Combined score ──
-    similarity_score = similarity * 100
+    # ── Combined score with better weights ──
     combined = (
-        similarity_score * 0.40 +
-        keyword_percentage * 0.40 +
-        format_score * 0.20
+        similarity_score * 0.15 +     # TF-IDF text similarity
+        keyword_percentage * 0.20 +    # JD keyword matching
+        skill_match_pct * 0.25 +       # Direct skill overlap
+        breadth_bonus * 0.15 +         # Total skill breadth
+        format_score * 0.25            # Resume quality & completeness
     )
 
     ats_score = min(100, max(0, int(combined)))
@@ -207,8 +223,11 @@ def _score_without_jd(resume_clean: str, job_role: str) -> Tuple[int, float]:
     matched = sum(1 for s in required if s in found_lower)
     keyword_pct = (matched / max(1, len(required))) * 100
 
+    # Also reward total skill count (breadth of skills)
+    total_skills_bonus = min(20, len(found) * 2)  # up to 20 pts for having many skills
+
     format_score = _calculate_format_score(resume_clean)
-    ats = int(keyword_pct * 0.7 + format_score * 0.3)
+    ats = int(keyword_pct * 0.55 + format_score * 0.25 + total_skills_bonus)
     ats = min(100, max(0, ats))
 
     return ats, round(keyword_pct, 1)
@@ -255,7 +274,7 @@ def _clean_text(text: str) -> str:
 
 
 def _extract_keywords(text: str) -> List[str]:
-    """Extract important keywords from text."""
+    """Extract important keywords from text, with comprehensive filtering."""
     if SPACY_AVAILABLE:
         doc = nlp(text[:5000])
         keywords = [
@@ -264,27 +283,113 @@ def _extract_keywords(text: str) -> List[str]:
         ]
         return list(set(keywords))
 
-    # Fallback: simple word extraction
+    # Fallback: comprehensive stop word filtering
     words = text.split()
-    stop_words = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-                  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'shall', 'would',
-                  'should', 'may', 'might', 'can', 'could', 'and', 'or', 'but', 'in',
-                  'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'into',
-                  'that', 'this', 'it', 'not', 'no', 'so', 'if', 'we', 'you', 'they',
-                  'our', 'your', 'their', 'its', 'all', 'each', 'every', 'any', 'some'}
+    stop_words = {
+        # Standard stop words
+        'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+        'have', 'has', 'had', 'do', 'does', 'did', 'will', 'shall', 'would',
+        'should', 'may', 'might', 'can', 'could', 'and', 'or', 'but', 'in',
+        'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'into',
+        'that', 'this', 'it', 'not', 'no', 'so', 'if', 'we', 'you', 'they',
+        'our', 'your', 'their', 'its', 'all', 'each', 'every', 'any', 'some',
+        # JD-specific common words that inflate keyword count
+        'looking', 'seeking', 'join', 'team', 'role', 'position', 'work',
+        'working', 'experience', 'years', 'strong', 'excellent', 'good',
+        'required', 'requirements', 'preferred', 'including', 'ability',
+        'must', 'need', 'needs', 'please', 'apply', 'company', 'job',
+        'candidate', 'ideal', 'responsible', 'responsibilities', 'skills',
+        'about', 'well', 'also', 'such', 'like', 'use', 'using', 'used',
+        'related', 'relevant', 'field', 'based', 'new', 'help', 'make',
+        'develop', 'developing', 'creating', 'create', 'building', 'build',
+        'ensure', 'maintain', 'support', 'provide', 'understand', 'knowledge',
+        'write', 'writing', 'written', 'read', 'reading', 'learn', 'learning',
+        'plus', 'bonus', 'points', 'nice', 'equivalent', 'practical', 'hands',
+        'verbal', 'oral', 'effectively', 'within', 'across', 'through',
+        'including', 'includes', 'other', 'day', 'daily', 'high', 'highly',
+        'level', 'time', 'quality', 'best', 'practices', 'end', 'full',
+        'proficiency', 'proficient', 'familiarity', 'familiar',
+    }
     keywords = [w for w in words if w.lower() not in stop_words and len(w) > 2]
-    return list(set(keywords))
+    # Deduplicate while preserving order
+    seen = set()
+    unique = []
+    for kw in keywords:
+        kw_lower = kw.lower()
+        if kw_lower not in seen:
+            seen.add(kw_lower)
+            unique.append(kw)
+    return unique
 
 
 def _calculate_format_score(text: str) -> float:
-    """Score resume format quality (0-100)."""
+    """
+    Score resume format quality (0-100).
+    Considers sections present, content depth, skills density, contact info,
+    and professional structure.
+    """
+    import re
     score = 0
     text_lower = text.lower()
+    word_count = len(text.split())
 
-    sections = ["experience", "education", "skills", "projects", "summary", "objective", "profile"]
-    for section in sections:
-        if section in text_lower:
-            score += 14
+    # ── Section presence (up to 35 pts) ──
+    # Include common alternate headings so internships/achievements count too.
+    sections = [
+        "experience", "work experience", "professional experience", "employment",
+        "internship", "intern", "training",
+        "education",
+        "skills", "technical skills", "technologies", "tools",
+        "projects", "portfolio",
+        "summary", "objective", "profile", "about",
+        "certif", "certification", "certifications",
+        "achievement", "achievements", "award", "awards", "honors",
+        "publication", "publications",
+        "leadership", "extracurricular", "volunteer",
+    ]
+    section_count = sum(1 for s in sections if s in text_lower)
+    score += min(35, section_count * 7)
 
-    # Cap at 100
+    # ── Content depth (up to 20 pts) ──
+    if word_count >= 400:
+        score += 20
+    elif word_count >= 250:
+        score += 15
+    elif word_count >= 150:
+        score += 10
+    elif word_count >= 80:
+        score += 5
+
+    # ── Technical skill density (up to 20 pts) ──
+    tech_keywords = [
+        'python', 'java', 'javascript', 'react', 'sql', 'aws', 'docker',
+        'tensorflow', 'machine learning', 'api', 'git', 'linux', 'node',
+        'typescript', 'html', 'css', 'mongodb', 'kubernetes', 'flask', 'django',
+        'express', 'redis', 'postgresql', 'angular', 'vue', 'pytorch',
+    ]
+    tech_found = sum(1 for kw in tech_keywords if kw in text_lower)
+    if tech_found >= 10:
+        score += 20
+    elif tech_found >= 6:
+        score += 15
+    elif tech_found >= 3:
+        score += 10
+    elif tech_found >= 1:
+        score += 5
+
+    # ── Contact info (up to 10 pts) ──
+    if re.search(r'[\w.+-]+@[\w-]+\.[\w.-]+', text):
+        score += 4
+    if re.search(r'[\+]?[\d\s\-\(\)]{10,}', text):
+        score += 3
+    if any(w in text_lower for w in ['linkedin', 'github']):
+        score += 3
+
+    # ── Action verbs / impact language (up to 15 pts) ──
+    action_verbs = ['developed', 'implemented', 'designed', 'led', 'managed',
+                   'created', 'built', 'optimized', 'improved', 'deployed',
+                   'delivered', 'architected', 'automated', 'integrated']
+    verb_count = sum(1 for v in action_verbs if v in text_lower)
+    score += min(15, verb_count * 3)
+
     return min(100, score)
