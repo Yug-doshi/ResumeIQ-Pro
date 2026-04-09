@@ -2,6 +2,8 @@
 
 LSTM/GRU-powered platform for resume analysis, interview preparation, and career optimization.
 
+**Live Demo**: https://resume-iq-pro1.vercel.app/
+
 ---
 
 ## Overview
@@ -205,6 +207,10 @@ npm run dev
 ---
 
 ## Deployment
+
+### Live Demo
+
+https://resume-iq-pro1.vercel.app/
 
 ### Backend
 
